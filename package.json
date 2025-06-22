@@ -1,0 +1,30 @@
+{
+	"name": "rawrclient",
+	"version": "1.0.0",
+	"main": "index.js",
+	"icon": "https://github.com/wyvrtn/RawrClient/blob/master/assets/rawr.gif",
+	"namespace": "https://github.com/wyvrtn/RawrClient",
+	"placeholder": "Rawr Client - Survev.io Client",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"commits": "oco --yes; npm version patch; git push;",
+		"build": "npx webpack -w",
+		"dev": "npx webpack -w"
+	},
+	"keywords": [],
+	"author": "Kisakay, Drino, wyvrtn",
+	"license": "AGPL-3.0",
+	"description": "idk what i'm doing ig im trying to learn js",
+	"devDependencies": {
+		"@types/semver": "^7.7.0",
+		"@types/tampermonkey": "^5.0.4",
+		"ts-loader": "^9.5.2",
+		"typescript": "^5.8.3",
+		"webpack": "^5.99.9",
+		"webpack-cli": "^5.1.4"
+	},
+	"dependencies": {
+		"semver": "^7.7.2",
+		"stegano.db": "^4.7.0"
+	}
+}

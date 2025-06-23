@@ -1,5 +1,6 @@
 
 {
+	"favicon": "https://i.postimg.cc/4y6TCr4r/rawr.gif",
 	"fileName": "RawrClient.user.js",
 	"match": [
 		"survev.io",

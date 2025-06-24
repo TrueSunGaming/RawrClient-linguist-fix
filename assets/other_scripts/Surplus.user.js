@@ -18,220 +18,231 @@
 
 // Copyright © Surplus Softworks
 
-(function() {
-    // Object utilities
-    const objectUtils = {};
-    for (let prop of Object.getOwnPropertyNames(Object)) {
-        objectUtils[prop] = Object[prop];
-    }
+(function () {
+	// Grabs Object and Reflect Functions to prevent noise when intercepting calls of Object and Reflect functions
 
-    // Reflect utilities
-    const reflectUtils = {};
-    for (let prop of objectUtils.getOwnPropertyNames(Reflect)) {
-        reflectUtils[prop] = Reflect[prop];
-    }
+	// List of Object functions
+	const objectUtils = {};
+	for (let prop of Object.getOwnPropertyNames(Object)) {
+		objectUtils[prop] = Object[prop];
+	}
 
-    // Proxy and WeakMap for function interception
-    const functionMap = new WeakMap();
-    const ProxyConstructor = Proxy;
+	// List of Reflect functions
+	const reflectUtils = {};
+	for (let prop of objectUtils.getOwnPropertyNames(Reflect)) {
+		reflectUtils[prop] = Reflect[prop];
+	}
 
-    // Helper to create a proxy for an object's property
-    function createProxy(target, property, handler) {
-        const proxy = new ProxyConstructor(target[property], handler);
-        functionMap.set(proxy, target[property]);
-        target[property] = proxy;
-    }
+	// List of Function Overriders (K: overriding function, V: actual function of some object)
+	const functionMap = new WeakMap();
+	// Literally just Proxy
+	const ProxyConstructor = Proxy;
 
-    // Override Function.prototype.toString to hide implementation
-    createProxy(Function.prototype, "toString", {
-        apply(target, thisArg, args) {
-            return reflectUtils.apply(target, functionMap.get(thisArg) || thisArg, args);
-        }
-    });
+	// Function that overrides an object's function with a proxy function and puts the proxy into functionMap
+	function createProxy(target, property, handler) {
+		const proxy = new ProxyConstructor(target[property], handler);
+		functionMap.set(proxy, target[property]);
+		target[property] = proxy;
+	}
 
-    // Original addEventListener method
-    const originalAddEventListener = globalThis.EventTarget.prototype.addEventListener;
+	// Example of overriding Function.prototype.toString, apply is a function of ProxyHandler,
+	// where the outside curly braces define the ProxyHandler, and the apply defines an override
+	// of the function interface where an exact implementation can be made. This specific example
+	// overrides the method "toString"
+	// Note: target refers to the function, thisArg refers to the specific object to refer to
+	// and args are the arguments for the function
+	createProxy(Function.prototype, "toString", {
+		apply(target, thisArg, args) {
+			return reflectUtils.apply(target, functionMap.get(thisArg) || thisArg, args);
+		}
+	});
 
-    // Game instance reference
-    let gameInstance;
+	// Original addEventListener method
+	const originalAddEventListener = globalThis.EventTarget.prototype.addEventListener;
 
-    // Hook into Function.prototype.bind to detect game object
-    function hookGameDetection(callback) {
-        createProxy(Function.prototype, "bind", {
-            apply(target, thisArg, args) {
-                try {
-                    if (args[0]?.nameInput != null && args[0]?.game != null) {
-                        Function.prototype.bind = target;
-                        gameInstance = args[0];
-                        callback();
-                    }
-                } catch {}
-                return reflectUtils.apply(target, thisArg, args);
-            }
-        });
-    }
+	// Game instance reference
+	let gameInstance;
 
-    // Input binding constants
-    const InputBindings = {
-        MoveLeft: 0, MoveRight: 1, MoveUp: 2, MoveDown: 3, Fire: 4,
-        Reload: 5, Cancel: 6, Interact: 7, Revive: 8, Use: 9, Loot: 10,
-        EquipPrimary: 11, EquipSecondary: 12, EquipMelee: 13, EquipThrowable: 14,
-        EquipFragGrenade: 15, EquipSmokeGrenade: 16, EquipNextWeap: 17,
-        EquipPrevWeap: 18, EquipLastWeap: 19, EquipOtherGun: 20,
-        EquipPrevScope: 21, EquipNextScope: 22, UseBandage: 23,
-        UseHealthKit: 24, UseSoda: 25, UsePainkiller: 26, StowWeapons: 27,
-        SwapWeapSlots: 28, ToggleMap: 29, CycleUIMode: 30, EmoteMenu: 31,
-        TeamPingMenu: 32, Fullscreen: 33, HideUI: 34, TeamPingSingle: 35,
-        Count: 36
-    };
+	// Hook into Function.prototype.bind to detect game object
+	// Refer to this: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/bind
+	// for Function.prototype.bind
+	function hookGameDetection(callback) {
+		// Replace Function.prototype.bind with a proxy
+		createProxy(Function.prototype, "bind", {
+			apply(target, thisArg, args) {
+				try {
+					if (args[0]?.nameInput != null && args[0]?.game != null) {
+						Function.prototype.bind = target;
+						gameInstance = args[0];
+						callback();
+					}
+				} catch { }
+				return reflectUtils.apply(target, thisArg, args);
+			}
+		});
+	}
 
-    // Message type constants
-    const MessageTypes = {
-        None: 0, Join: 1, Disconnect: 2, Input: 3, Edit: 4, Joined: 5,
-        Update: 6, Kill: 7, GameOver: 8, Pickup: 9, Map: 10, Spectate: 11,
-        DropItem: 12, Emote: 13, PlayerStats: 14, AdStatus: 15, Loadout: 16,
-        RoleAnnouncement: 17, Stats: 18, UpdatePass: 19, AliveCounts: 20,
-        PerkModeRoleSelect: 21
-    };
+	// Input binding constants
+	const InputBindings = {
+		MoveLeft: 0, MoveRight: 1, MoveUp: 2, MoveDown: 3, Fire: 4,
+		Reload: 5, Cancel: 6, Interact: 7, Revive: 8, Use: 9, Loot: 10,
+		EquipPrimary: 11, EquipSecondary: 12, EquipMelee: 13, EquipThrowable: 14,
+		EquipFragGrenade: 15, EquipSmokeGrenade: 16, EquipNextWeap: 17,
+		EquipPrevWeap: 18, EquipLastWeap: 19, EquipOtherGun: 20,
+		EquipPrevScope: 21, EquipNextScope: 22, UseBandage: 23,
+		UseHealthKit: 24, UseSoda: 25, UsePainkiller: 26, StowWeapons: 27,
+		SwapWeapSlots: 28, ToggleMap: 29, CycleUIMode: 30, EmoteMenu: 31,
+		TeamPingMenu: 32, Fullscreen: 33, HideUI: 34, TeamPingSingle: 35,
+		Count: 36
+	};
 
-    // Game object references
-    let bullets, explosions, guns, throwables, obstacles;
+	// Message type constants
+	const MessageTypes = {
+		None: 0, Join: 1, Disconnect: 2, Input: 3, Edit: 4, Joined: 5,
+		Update: 6, Kill: 7, GameOver: 8, Pickup: 9, Map: 10, Spectate: 11,
+		DropItem: 12, Emote: 13, PlayerStats: 14, AdStatus: 15, Loadout: 16,
+		RoleAnnouncement: 17, Stats: 18, UpdatePass: 19, AliveCounts: 20,
+		PerkModeRoleSelect: 21
+	};
 
-    // Detect game objects by intercepting Object.keys
-    createProxy(Object, "keys", {
-        apply(target, thisArg, args) {
-            try {
-                if (!bullets && args[0]?.bullet_mp5?.type === "bullet") bullets = args[0];
-                else if (!explosions && args[0]?.explosion_frag?.type === "explosion") explosions = args[0];
-                else if (!guns && args[0]?.mp5?.type === "gun") guns = args[0];
-                else if (!throwables && args[0]?.frag?.type === "throwable") throwables = args[0];
-                else if (!obstacles && args[0]?.barrel_01?.type === "obstacle") obstacles = args[0];
+	// Game object references
+	let bullets, explosions, guns, throwables, obstacles;
 
-                if (bullets && explosions && guns && throwables && obstacles) {
-                    Object.keys = target;
-                }
-            } catch {}
-            return reflectUtils.apply(target, thisArg, args);
-        }
-    });
+	// Detect game objects by intercepting Object.keys
+	createProxy(Object, "keys", {
+		apply(target, thisArg, args) {
+			try {
+				if (!bullets && args[0]?.bullet_mp5?.type === "bullet") bullets = args[0];
+				else if (!explosions && args[0]?.explosion_frag?.type === "explosion") explosions = args[0];
+				else if (!guns && args[0]?.mp5?.type === "gun") guns = args[0];
+				else if (!throwables && args[0]?.frag?.type === "throwable") throwables = args[0];
+				else if (!obstacles && args[0]?.barrel_01?.type === "obstacle") obstacles = args[0];
 
-    // Get player's team
-    function getPlayerTeam(player) {
-        return objectUtils.keys(gameInstance.game.playerBarn.teamInfo)
-            .find(team => gameInstance.game.playerBarn.teamInfo[team].playerIds.includes(player.__id));
-    }
+				if (bullets && explosions && guns && throwables && obstacles) {
+					Object.keys = target;
+				}
+			} catch { }
+			return reflectUtils.apply(target, thisArg, args);
+		}
+	});
 
-    // Get active weapon
-    function getActiveWeapon(player) {
-        const weapon = player.netData.activeWeapon;
-        return weapon && guns[weapon] ? guns[weapon] : null;
-    }
+	// Get player's team
+	function getPlayerTeam(player) {
+		return objectUtils.keys(gameInstance.game.playerBarn.teamInfo)
+			.find(team => gameInstance.game.playerBarn.teamInfo[team].playerIds.includes(player.__id));
+	}
 
-    // Get bullet type
-    function getBulletType(weapon) {
-        return weapon ? bullets[weapon.bulletType] : null;
-    }
+	// Get active weapon
+	function getActiveWeapon(player) {
+		const weapon = player.netData.activeWeapon;
+		return weapon && guns[weapon] ? guns[weapon] : null;
+	}
 
-    // Graphics utilities
-    const GraphicsUtils = { Graphics: undefined, Container: undefined };
+	// Get bullet type
+	function getBulletType(weapon) {
+		return weapon ? bullets[weapon.bulletType] : null;
+	}
 
-    // X-Ray feature: Modify visibility of game elements
-    function applyXRay() {
-        if (gameInstance.game?.initialized) {
-            try {
-                if (config.xray.enabled) {
-                    gameInstance.game.renderer.layers[3].children.forEach(child => {
-                        if (child._texture?.textureCacheIds?.some(id =>
-                                                                  (id.includes("ceiling") && !id.includes("map-building-container-ceiling-05")) ||
-                                                                  id.includes("map-snow-"))) {
-                            child.visible = false;
-                        }
-                    });
+	// Graphics utilities
+	const GraphicsUtils = { Graphics: undefined, Container: undefined };
 
-                    gameInstance.game.smokeBarn.particles.forEach(particle => {
-                        particle.pos = { x: 1e6, y: 1e5 };
-                    });
+	// X-Ray feature: Modify visibility of game elements
+	function applyXRay() {
+		if (gameInstance.game?.initialized) {
+			try {
+				if (config.xray.enabled) {
+					gameInstance.game.renderer.layers[3].children.forEach(child => {
+						if (child._texture?.textureCacheIds?.some(id =>
+							(id.includes("ceiling") && !id.includes("map-building-container-ceiling-05")) ||
+							id.includes("map-snow-"))) {
+							child.visible = false;
+						}
+					});
 
-                    gameInstance.game.map.obstaclePool.pool.forEach(obstacle => {
-                        if (["tree", "table", "stairs"].some(type => obstacle.type.includes(type))) {
-                            obstacle.sprite.alpha = 0.55;
-                        }
-                        if (["bush"].some(type => obstacle.type.includes(type))) {
-                            obstacle.sprite.alpha = 0;
-                        }
-                    });
-                }
-            } catch {}
-        }
-    }
+					gameInstance.game.smokeBarn.particles.forEach(particle => {
+						particle.pos = { x: 1e6, y: 1e5 };
+					});
 
-    let xRayInitialized = true;
+					gameInstance.game.map.obstaclePool.pool.forEach(obstacle => {
+						if (["tree", "table", "stairs"].some(type => obstacle.type.includes(type))) {
+							obstacle.sprite.alpha = 0.55;
+						}
+						if (["bush"].some(type => obstacle.type.includes(type))) {
+							obstacle.sprite.alpha = 0;
+						}
+					});
+				}
+			} catch { }
+		}
+	}
 
-    // Hook player pool to apply visual modifications
-    function initializePlayerHooks() {
-        createProxy(gameInstance.game.playerBarn.playerPool.pool, "push", {
-            apply(target, thisArg, args) {
-                args.forEach(player => {
-                    objectUtils.defineProperty(player, "bleedTicker", {
-                        configurable: true,
-                        set(value) {
-                            this._bleedTicker = value;
-                            const activePlayer = gameInstance.game.activePlayer;
-                            const activeTeam = getPlayerTeam(activePlayer);
-                            const playerTeam = getPlayerTeam(player);
+	let xRayInitialized = true;
 
-                            objectUtils.defineProperty(player.nameText, "visible", { configurable: true, value: true });
-                            objectUtils.defineProperty(player, "tint", {
-                                configurable: true,
-                                value: playerTeam === activeTeam ? 3836148 : 16721960
-                            });
-                            objectUtils.defineProperty(player.nameText.style, "fill", {
-                                configurable: true,
-                                value: playerTeam === activeTeam ? "#3a88f4" : "#ff2828"
-                            });
-                            objectUtils.defineProperty(player.nameText.style, "fontSize", { configurable: true, value: 20 });
-                            objectUtils.defineProperty(player.nameText.style, "dropShadowBlur", { configurable: true, value: 0.1 });
-                        },
-                        get() {
-                            return this._bleedTicker;
-                        }
-                    });
-                });
-                return reflectUtils.apply(target, thisArg, args);
-            }
-        });
+	// Hook player pool to apply visual modifications
+	function initializePlayerHooks() {
+		createProxy(gameInstance.game.playerBarn.playerPool.pool, "push", {
+			apply(target, thisArg, args) {
+				args.forEach(player => {
+					objectUtils.defineProperty(player, "bleedTicker", {
+						configurable: true,
+						set(value) {
+							this._bleedTicker = value;
+							const activePlayer = gameInstance.game.activePlayer;
+							const activeTeam = getPlayerTeam(activePlayer);
+							const playerTeam = getPlayerTeam(player);
 
-        if (xRayInitialized) {
-            setInterval(applyXRay, 150);
-            xRayInitialized = false;
-        }
-    }
+							objectUtils.defineProperty(player.nameText, "visible", { configurable: true, value: true });
+							objectUtils.defineProperty(player, "tint", {
+								configurable: true,
+								value: playerTeam === activeTeam ? 3836148 : 16721960
+							});
+							objectUtils.defineProperty(player.nameText.style, "fill", {
+								configurable: true,
+								value: playerTeam === activeTeam ? "#3a88f4" : "#ff2828"
+							});
+							objectUtils.defineProperty(player.nameText.style, "fontSize", { configurable: true, value: 20 });
+							objectUtils.defineProperty(player.nameText.style, "dropShadowBlur", { configurable: true, value: 0.1 });
+						},
+						get() {
+							return this._bleedTicker;
+						}
+					});
+				});
+				return reflectUtils.apply(target, thisArg, args);
+			}
+		});
 
-    // Infinite zoom feature
-    function applyInfiniteZoom() {
-        reflectUtils.apply(originalAddEventListener, globalThis, ["wheel", event => {
-            if (event.shiftKey && config.infiniteZoom.enabled) {
-                try {
-                    let zoom = gameInstance.game.activePlayer.localData.zoom;
-                    if (event.deltaY > 0) {
-                        zoom += 20;
-                    } else {
-                        zoom -= 30;
-                        zoom = Math.max(36, zoom);
-                    }
-                    objectUtils.defineProperty(gameInstance.game.activePlayer.localData, "zoom", {
-                        configurable: true,
-                        get() { return zoom; },
-                        set() {}
-                    });
-                    event.stopImmediatePropagation();
-                } catch {}
-            }
-        }]);
-    }
+		if (xRayInitialized) {
+			setInterval(applyXRay, 150);
+			xRayInitialized = false;
+		}
+	}
 
-    // Cheat menu HTML/CSS
-    const cheatMenuHTML = `
+	// Infinite zoom feature
+	function applyInfiniteZoom() {
+		reflectUtils.apply(originalAddEventListener, globalThis, ["wheel", event => {
+			if (event.shiftKey && config.infiniteZoom.enabled) {
+				try {
+					let zoom = gameInstance.game.activePlayer.localData.zoom;
+					if (event.deltaY > 0) {
+						zoom += 20;
+					} else {
+						zoom -= 30;
+						zoom = Math.max(36, zoom);
+					}
+					objectUtils.defineProperty(gameInstance.game.activePlayer.localData, "zoom", {
+						configurable: true,
+						get() { return zoom; },
+						set() { }
+					});
+					event.stopImmediatePropagation();
+				} catch { }
+			}
+		}]);
+	}
+
+	// Cheat menu HTML/CSS
+	const cheatMenuHTML = `
             <style>
                 * { font-family: GothamPro, sans-serif; box-sizing: border-box; margin: 0; padding: 0; }
                 .popup { user-select: none; position: relative; background: #1a1a1a; border-radius: 15px; box-shadow: 0 8px 32px rgba(0,0,0,.3); width: 340px; min-height: 380px; overflow: hidden; border: 1px solid #333; transition: all .3s ease-out; }
@@ -459,1043 +470,808 @@
             </div>
         `;
 
-    // IndexedDB utilities
-    const dbName = "s⁣";
-    const storeName = "t⁣";
-    const PromiseConstructor = Promise;
-    const openDB = IDBFactory.prototype.open;
-    const containsStore = DOMStringList.prototype.contains;
-    const createStore = IDBDatabase.prototype.createObjectStore;
-    const createTransaction = IDBDatabase.prototype.transaction;
-    const getStore = IDBTransaction.prototype.objectStore;
-    const putData = IDBObjectStore.prototype.put;
-    const getData = IDBObjectStore.prototype.get;
-
-    let database;
-    let dbInitialized = false;
-
-    // Open IndexedDB
-    function initializeDB() {
-        return dbInitialized
-            ? new PromiseConstructor(resolve => resolve(true))
-        : new PromiseConstructor(resolve => {
-            const request = reflectUtils.apply(openDB, indexedDB, [dbName, 1]);
-            request.onupgradeneeded = event => {
-                database = event.target.result;
-                if (!reflectUtils.apply(containsStore, database.objectStoreNames, [storeName])) {
-                    reflectUtils.apply(createStore, database, [storeName]);
-                }
-            };
-            request.onsuccess = event => {
-                database = event.target.result;
-                dbInitialized = true;
-                resolve(true);
-            };
-        });
-    }
-
-    // Save data to IndexedDB
-    function saveConfig(key, value) {
-        return new PromiseConstructor((resolve, reject) => {
-            if (!database) return resolve(false);
-            const transaction = reflectUtils.apply(createTransaction, database, [storeName, "readwrite"]);
-            const store = reflectUtils.apply(getStore, transaction, [storeName]);
-            const request = reflectUtils.apply(putData, store, [value, key]);
-            request.onsuccess = () => resolve(true);
-            request.onerror = error => reject(error.target.error);
-        });
-    }
-
-    // Load data from IndexedDB
-    function loadConfig(key) {
-        return new PromiseConstructor((resolve, reject) => {
-            if (!database) return resolve(false);
-            const transaction = reflectUtils.apply(createTransaction, database, [storeName, "readonly"]);
-            const store = reflectUtils.apply(getStore, transaction, [storeName]);
-            const request = reflectUtils.apply(getData, store, [key]);
-            request.onsuccess = () => resolve(request.result || null);
-            request.onerror = error => reject(error.target.error);
-        });
-    }
-
-    // Simple XOR encryption for config
-    const charCodeAt = String.prototype.charCodeAt;
-    const fromCharCode = String.fromCharCode;
-
-    function encryptDecrypt(text, key = charCodeAt.toString()) {
-        const keyLength = key.length;
-        let result = "";
-        for (let i = 0; i < text.length; i++) {
-            const textChar = reflectUtils.apply(charCodeAt, text, [i]);
-            const keyChar = reflectUtils.apply(charCodeAt, key, [i % keyLength]);
-            result += fromCharCode(textChar ^ keyChar);
-        }
-        return result;
-    }
-
-    // UI variables
-    let shadowRoot, uiElement;
-    let uiInitialized = false;
-
-    // Initialize cheat menu UI
-    function initializeUI() {
-        const parseJSON = JSON.parse;
-        reflectUtils.apply(originalAddEventListener, document, ["DOMContentLoaded", () => {
-            const link = document.createElement("link");
-            link.href = "https://cdn.rawgit.com/mfd/f3d96ec7f0e8f034cc22ea73b3797b59/raw/856f1dbb8d807aabceb80b6d4f94b464df461b3e/gotham.css";
-            link.rel = "stylesheet";
-            document.head.appendChild(link);
-
-            const container = document.createElement("div");
-            shadowRoot = container.attachShadow({ mode: "closed" });
-            shadowRoot.innerHTML = cheatMenuHTML;
-            document.body.appendChild(container);
-
-            uiElement = shadowRoot.querySelector("#ui");
-            objectUtils.assign(uiElement.style, {
-                position: "fixed",
-                zIndex: "9999",
-                left: "225px",
-                top: "250px"
-            });
-
-            const header = shadowRoot.querySelector(".header");
-            const closeBtn = shadowRoot.querySelector(".close-btn");
-            const popup = shadowRoot.querySelector(".popup");
-
-            // Prevent event propagation in popup
-            ["click", "mousedown", "pointerdown", "pointerup", "touchstart", "touchend"].forEach(event => {
-                reflectUtils.apply(originalAddEventListener, popup, [event, evt => {
-                    evt.stopPropagation();
-                    evt.stopImmediatePropagation();
-                }]);
-            });
-
-            // Keybinds for toggling features
-            reflectUtils.apply(originalAddEventListener, globalThis, ["keydown", event => {
-                switch (event.code) {
-                    case "ShiftRight":
-                        uiElement.style.display = uiElement.style.display === "none" ? "" : "none";
-                        break;
-                    case "KeyB":
-                        config.aimbot.enabled = !config.aimbot.enabled;
-                        break;
-                    case "KeyH":
-                        config.spinbot.enabled = !config.spinbot.enabled;
-                        break;
-                    case "KeyX":
-                        config.emoteSpam.enabled = !config.emoteSpam.enabled;
-                        break;
-                }
-            }]);
-
-            // Close button
-            reflectUtils.apply(originalAddEventListener, closeBtn, ["click", () => {
-                uiElement.style.display = "none";
-            }]);
-
-            // Checkbox interactions
-            shadowRoot.querySelectorAll(".checkbox-item").forEach(item => {
-                reflectUtils.apply(originalAddEventListener, item, ["click", () => {
-                    const checkbox = item.querySelector('input[type="checkbox"]');
-                    if (checkbox) checkbox.click();
-                }]);
-            });
-
-            shadowRoot.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-                reflectUtils.apply(originalAddEventListener, checkbox, ["click", evt => {
-                    evt.stopPropagation();
-                }]);
-            });
-
-            shadowRoot.querySelectorAll(".checkbox-item label").forEach(label => {
-                reflectUtils.apply(originalAddEventListener, label, ["click", evt => {
-                    evt.stopPropagation();
-                }]);
-            });
-
-            // Navigation tabs
-            const tabs = shadowRoot.querySelectorAll(".nav-tab");
-            const contents = shadowRoot.querySelectorAll(".content-container");
-            tabs.forEach(tab => {
-                reflectUtils.apply(originalAddEventListener, tab, ["click", () => {
-                    tabs.forEach(t => t.classList.remove("active"));
-                    contents.forEach(c => c.classList.remove("active"));
-                    tab.classList.add("active");
-                    const tabId = tab.dataset.tab;
-                    shadowRoot.querySelector(`.content-container[data-content="${tabId}"]`).classList.add("active");
-                }]);
-            });
-
-            // Draggable header
-            let isDragging = false, startX, startY, initialLeft, initialTop;
-            reflectUtils.apply(originalAddEventListener, header, ["mousedown", startDrag]);
-
-            function startDrag(event) {
-                isDragging = true;
-                startX = event.clientX;
-                startY = event.clientY;
-                initialLeft = parseFloat(uiElement.style.left);
-                initialTop = parseFloat(uiElement.style.top);
-                reflectUtils.apply(originalAddEventListener, globalThis, ["mousemove", drag]);
-                reflectUtils.apply(originalAddEventListener, globalThis, ["mouseup", stopDrag]);
-            }
-
-            function drag(event) {
-                if (!isDragging) return;
-                const deltaX = event.clientX - startX;
-                const deltaY = event.clientY - startY;
-                uiElement.style.transform = "none";
-                uiElement.style.left = `${initialLeft + deltaX}px`;
-                uiElement.style.top = `${initialTop + deltaY}px`;
-            }
-
-            function stopDrag() {
-                isDragging = false;
-                reflectUtils.apply(originalAddEventListener, globalThis, ["mousemove", drag]);
-                reflectUtils.apply(originalAddEventListener, globalThis, ["mouseup", stopDrag]);
-            }
-
-            // Bring popup to front on click
-            reflectUtils.apply(originalAddEventListener, globalThis, ["mousedown", event => {
-                if (event.composedPath().includes(popup)) {
-                    uiElement.style.zIndex = "9999";
-                }
-            }]);
-
-            // Merge loaded config
-            const mergeConfig = (source, target = config) => {
-                if (!source || typeof source !== "object") return;
-                objectUtils.entries(source).forEach(([key, value]) => {
-                    if (value && typeof value === "object" && target && target[key]) {
-                        mergeConfig(value, target[key]);
-                    } else {
-                        target[key] = value;
-                    }
-                });
-            };
-
-            loadConfig("c").then(data => data ? parseJSON(encryptDecrypt(data)) : defaultConfig)
-                .then(loadedConfig => {
-                mergeConfig(loadedConfig);
-                uiInitialized = true;
-            });
-
-            reflectUtils.apply(shadowRoot.querySelector, shadowRoot, [".title"]).innerHTML += " " + 1.9;
-        }]);
-    }
-
-    // Aimbot variables
-    let aimbotTarget, aimbotTouch;
-    const aimbotState = { focusedEnemy: null, previousEnemies: {}, currentEnemy: null };
-    let aimbotDot;
-
-    // Distance calculation
-    function calculateDistance(x1, y1, x2, y2) {
-        return (x1 - x2) ** 2 + (y1 - y2) ** 2;
-    }
-
-    // Angle calculation
-    function calculateAngle(pos1, pos2) {
-        const dx = pos2.x - pos1.x;
-        const dy = pos2.y - pos1.y;
-        return Math.atan2(dy, dx);
-    }
-
-    // Predict enemy position for aimbot
-    function predictEnemyPosition(enemy, player) {
-        if (!enemy || !player) return null;
-        const enemyPos = enemy._pos;
-        const playerPos = player._pos;
-        const now = performance.now();
-        const enemyId = enemy.__id;
-
-        if (!aimbotState.previousEnemies[enemyId]) aimbotState.previousEnemies[enemyId] = [];
-        aimbotState.previousEnemies[enemyId].push([now, { ...enemyPos }]);
-        if (aimbotState.previousEnemies[enemyId].length > 20) aimbotState.previousEnemies[enemyId].shift();
-
-        if (aimbotState.previousEnemies[enemyId].length < 20) {
-            return gameInstance.game.camera.pointToScreen({ x: enemyPos.x, y: enemyPos.y });
-        }
-
-        const timeDelta = (now - aimbotState.previousEnemies[enemyId][0][0]) / 1000;
-        const velocity = {
-            x: (enemyPos.x - aimbotState.previousEnemies[enemyId][0][1].x) / timeDelta,
-            y: (enemyPos.y - aimbotState.previousEnemies[enemyId][0][1].y) / timeDelta
-        };
-
-        const weapon = getActiveWeapon(player);
-        const bulletSpeed = getBulletType(weapon)?.speed || 1000;
-        const { x: vx, y: vy } = velocity;
-        const dx = enemyPos.x - playerPos.x;
-        const dy = enemyPos.y - playerPos.y;
-
-        const a = bulletSpeed ** 2 - vx ** 2 - vy ** 2;
-        const b = -2 * (vx * dx + vy * dy);
-        const c = -(dx ** 2) - (dy ** 2);
-        let time;
-
-        if (Math.abs(a) < 1e-6) {
-            time = -c / b;
-        } else {
-            const discriminant = b ** 2 - 4 * a * c;
-            const sqrtDisc = Math.sqrt(discriminant);
-            const t1 = (-b - sqrtDisc) / (2 * a);
-            const t2 = (-b + sqrtDisc) / (2 * a);
-            time = Math.min(t1, t2) > 0 ? Math.min(t1, t2) : Math.max(t1, t2);
-        }
-
-        const predictedPos = {
-            x: enemyPos.x + vx * time,
-            y: enemyPos.y + vy * time
-        };
-
-        return gameInstance.game.camera.pointToScreen(predictedPos);
-    }
-
-    // Find nearest enemy for aimbot
-    function findNearestEnemy(players, player) {
-        const playerTeam = getPlayerTeam(player);
-        let nearestEnemy = null;
-        let minDistance = Infinity;
-
-        for (const p of players) {
-            if (!p.active || p.netData.dead || (!config.aimbot.targetKnocked && p.downed) ||
-                player.__id === p.__id || player.layer !== p.layer || getPlayerTeam(p) === playerTeam) {
-                continue;
-            }
-
-            const screenPos = gameInstance.game.camera.pointToScreen({ x: p.pos.x, y: p.pos.y });
-            const distance = calculateDistance(screenPos.x, screenPos.y,
-                                               gameInstance.game.input.mousePos._x, gameInstance.game.input.mousePos._y);
-
-            if (distance < minDistance) {
-                minDistance = distance;
-                nearestEnemy = p;
-            }
-        }
-        return nearestEnemy;
-    }
-
-    // Aimbot logic
-    function updateAimbot() {
-        if (!config.aimbot.enabled || gameInstance.game.activePlayer == null) {
-            aimbotTarget = null;
-            aimbotDot.style.display = "none";
-            return;
-        }
-
-        const players = gameInstance.game.playerBarn.playerPool.pool;
-        const activePlayer = gameInstance.game.activePlayer;
-
-        try {
-            let target = aimbotState.focusedEnemy?.active && !aimbotState.focusedEnemy.netData.dead
-            ? aimbotState.focusedEnemy : null;
-
-            if (!target) {
-                target = findNearestEnemy(players, activePlayer);
-                aimbotState.currentEnemy = target;
-            }
-
-            if (target) {
-                const playerX = activePlayer.pos.x;
-                const playerY = activePlayer.pos.y;
-                const enemyX = target.pos.x;
-                const enemyY = target.pos.y;
-                const distance = Math.hypot(playerX - enemyX, playerY - enemyY);
-
-                if (target !== aimbotState.currentEnemy) {
-                    aimbotState.currentEnemy = target;
-                    aimbotState.previousEnemies[target.__id] = [];
-                }
-
-                const aimPos = predictEnemyPosition(target, activePlayer);
-                if (!aimPos) return aimbotDot.style.display = "none";
-
-                if (activePlayer.localData.curWeapIdx === 2 && distance <= 8 &&
-                    config.aimbot.meleeLock && gameInstance.game.inputBinds.isBindDown(InputBindings.Fire)) {
-                    const angle = calculateAngle(target.pos, activePlayer.pos) + Math.PI;
-                    aimbotTouch = { touchMoveActive: true, touchMoveLen: 255, x: Math.cos(angle), y: Math.sin(angle) };
-                    aimbotTarget = { clientX: aimPos.x, clientY: aimPos.y };
-                    aimbotDot.style.display = "none";
-                } else {
-                    aimbotTouch = null;
-                }
-
-                if (activePlayer.localData.curWeapIdx === 2 && distance >= 8) {
-                    aimbotTouch = null;
-                    aimbotTarget = null;
-                    aimbotDot.style.display = "none";
-                    return;
-                }
-
-                if (activePlayer.throwableState === "cook") {
-                    aimbotTarget = null;
-                    aimbotDot.style.display = "none";
-                    return;
-                }
-
-                aimbotTarget = { clientX: aimPos.x, clientY: aimPos.y };
-                if (aimbotDot.style.left !== aimPos.x + "px" || aimbotDot.style.top !== aimPos.y + "px") {
-                    aimbotDot.style.left = aimPos.x + "px";
-                    aimbotDot.style.top = aimPos.y + "px";
-                    aimbotDot.style.display = "block";
-                }
-            } else {
-                aimbotTouch = null;
-                aimbotTarget = null;
-                aimbotDot.style.display = "none";
-            }
-        } catch {
-            aimbotDot.style.display = "none";
-        }
-    }
-
-    // Initialize aimbot
-    function initializeAimbot() {
-        if (!aimbotDot) {
-            aimbotDot = document.createElement("div");
-            aimbotDot.classList.add("aimbot-dot");
-            shadowRoot.appendChild(aimbotDot);
-        }
-        gameInstance.game.pixi._ticker.add(updateAimbot);
-    }
-
-    // ESP colors
-    const teamColor = 3836148;
-    const enemyColor = 14432052;
-    const defaultColor = 16777215;
-
-    // Get or create graphics object
-    function getGraphics(container, name) {
-        if (!container[name]) {
-            container[name] = new GraphicsUtils.Graphics();
-            container.addChild(container[name]);
-        }
-        return container[name];
-    }
-
-    // Draw player ESP lines
-    function drawPlayerESP(player, players, graphics) {
-        const playerX = player.pos.x;
-        const playerY = player.pos.y;
-        const playerTeam = getPlayerTeam(player);
-
-        players.forEach(p => {
-            if (!p.active || p.netData.dead || player.__id === p.__id) return;
-            const color = getPlayerTeam(p) === playerTeam ? teamColor :
-            (player.layer === p.layer && !p.downed ? enemyColor : defaultColor);
-            graphics.lineStyle(2, color, 0.45);
-            graphics.moveTo(0, 0);
-            graphics.lineTo((p.pos.x - playerX) * 16, (playerY - p.pos.y) * 16);
-        });
-    }
-
-    // Draw grenade ESP
-    function drawGrenadeESP(player, graphics) {
-        const playerX = player.pos.x;
-        const playerY = player.pos.y;
-
-        objectUtils.values(gameInstance.game.objectCreator.idToObj)
-            .filter(obj => (obj.__type === 9 && obj.type !== "smoke") || (obj.smokeEmitter && obstacles[obj.type].explosion))
-            .forEach(obj => {
-            const color = obj.layer !== player.layer ? 16777215 : 16711680;
-            const alpha = obj.layer !== player.layer ? 0.2 : 0.1;
-            const radius = (explosions[throwables[obj.type]?.explosionType || obstacles[obj.type].explosion].rad.max + 1) * 16;
-
-            graphics.beginFill(color, alpha);
-            graphics.drawCircle((obj.pos.x - playerX) * 16, (playerY - obj.pos.y) * 16, radius);
-            graphics.endFill();
-            graphics.lineStyle(2, 0, 0.2);
-            graphics.drawCircle((obj.pos.x - playerX) * 16, (playerY - obj.pos.y) * 16, radius);
-        });
-    }
-
-    // Draw flashlight ESP
-    function drawFlashlightESP(player, players, graphics) {
-        const weapon = getActiveWeapon(player);
-        const bullet = getBulletType(weapon);
-
-        function drawFlashlight(target, bulletData, weaponData, color = 255, alpha = 0.1) {
-            if (!bulletData) return;
-            const pos = { x: (target.pos.x - player.pos.x) * 16, y: (player.pos.y - target.pos.y) * 16 };
-            let angle;
-
-            if (target === player && (!aimbotTarget || (aimbotTarget && !(gameInstance.game.touch.shotDetected || gameInstance.game.inputBinds.isBindDown(InputBindings.Fire))))) {
-                angle = Math.atan2(gameInstance.game.input.mousePos._y - innerHeight / 2, gameInstance.game.input.mousePos._x - innerWidth / 2);
-            } else if (target === player && aimbotTarget) {
-                const screenPos = gameInstance.game.camera.pointToScreen({ x: target.pos.x, y: target.pos.y });
-                angle = Math.atan2(screenPos.y - aimbotTarget.clientY, screenPos.x - aimbotTarget.clientX) - Math.PI;
-            } else {
-                angle = Math.atan2(target.dir.x, target.dir.y) - Math.PI / 2;
-            }
-
-            graphics.beginFill(color, alpha);
-            graphics.moveTo(pos.x, pos.y);
-            graphics.arc(pos.x, pos.y, bulletData.distance * 16.25,
-                         angle - weaponData.shotSpread * 0.01745329252 / 2,
-                         angle + weaponData.shotSpread * 0.01745329252 / 2);
-            graphics.lineTo(pos.x, pos.y);
-            graphics.endFill();
-        }
-
-        if (config.esp.flashlights.own) drawFlashlight(player, bullet, weapon);
-        players.filter(p => p.active && !p.netData.dead && player.__id !== p.__id &&
-                       player.layer === p.layer && getPlayerTeam(p) !== getPlayerTeam(player))
-            .forEach(p => {
-            if (config.esp.flashlights.others) drawFlashlight(p, getBulletType(getActiveWeapon(p)), getActiveWeapon(p), 0, 0.05);
-        });
-    }
-
-    // Update ESP
-    function updateESP() {
-        const pixi = gameInstance.game.pixi;
-        const activePlayer = gameInstance.game.activePlayer;
-        const players = gameInstance.game.playerBarn.playerPool.pool;
-
-        if (!pixi || !activePlayer || activePlayer.container == null || !config.esp.enabled || !gameInstance.game?.initialized) return;
-
-        try {
-            const lineDrawer = getGraphics(activePlayer.container, "lineDrawer");
-            lineDrawer.clear();
-            if (config.esp.players) drawPlayerESP(activePlayer, players, lineDrawer);
-
-            const grenadeDrawer = getGraphics(activePlayer.container, "grenadeDrawer");
-            grenadeDrawer.clear();
-            if (config.esp.grenades) drawGrenadeESP(activePlayer, grenadeDrawer);
-
-            const laserDrawer = getGraphics(activePlayer.container, "laserDrawer");
-            laserDrawer.clear();
-            if (config.esp.flashlights.others || config.esp.flashlights.own) drawFlashlightESP(activePlayer, players, laserDrawer);
-        } catch {}
-    }
-
-    // Initialize ESP
-    function initializeESP() {
-        gameInstance.game.pixi._ticker.add(updateESP);
-    }
-
-    // Auto loot toggle
-    function applyAutoLoot() {
-        globalThis.mobile = config.autoLoot.enabled;
-    }
-
-    // Grenade timer
-    let lastGrenadeTime = Date.now();
-    let grenadeActive = false;
-    let grenadeTimer = null;
-
-    function updateGrenadeTimer() {
-        if (gameInstance.game?.ws && gameInstance.game?.activePlayer?.localData?.curWeapIdx != null &&
-            gameInstance.game?.activePlayer?.netData?.activeWeapon != null && gameInstance.game?.initialized) {
-            try {
-                const elapsed = (Date.now() - lastGrenadeTime) / 1000;
-                const activePlayer = gameInstance.game.activePlayer;
-                const activeWeapon = activePlayer.netData.activeWeapon;
-
-                if (activePlayer.localData.curWeapIdx !== 3 || activePlayer.throwableState !== "cook" ||
-                    (!activeWeapon.includes("frag") && !activeWeapon.includes("mirv") && !activeWeapon.includes("martyr_nade"))) {
-                    grenadeActive = false;
-                    if (grenadeTimer) grenadeTimer.destroy();
-                    grenadeTimer = false;
-                    return;
-                }
-
-                const maxTime = 4;
-                if (elapsed > maxTime) grenadeActive = false;
-
-                if (!grenadeActive) {
-                    if (grenadeTimer) grenadeTimer.destroy();
-                    grenadeTimer = new gameInstance.game.uiManager.pieTimer.constructor();
-                    gameInstance.game.pixi.stage.addChild(grenadeTimer.container);
-                    grenadeTimer.start("Grenade", 0, maxTime);
-                    grenadeActive = true;
-                    lastGrenadeTime = Date.now();
-                    return;
-                }
-
-                grenadeTimer.update(elapsed - grenadeTimer.elapsed, gameInstance.game.camera);
-            } catch {}
-        }
-    }
-
-    function initializeGrenadeTimer() {
-        gameInstance.game.pixi._ticker.add(updateGrenadeTimer);
-    }
-
-    // Auto fire
-    let autoFiring = false;
-
-    function applyAutoFire() {
-        autoFiring = config.autoFire.enabled;
-        reflectUtils.apply(originalAddEventListener, globalThis, ["mousedown", event => {
-            if (event.button === 0) autoFiring = config.autoFire.enabled;
-        }]);
-        reflectUtils.apply(originalAddEventListener, globalThis, ["mouseup", event => {
-            if (event.button === 0) autoFiring = false;
-        }]);
-    }
-
-    // Input and emote storage
-    let emotes = [];
-    let inputQueue = [];
-
-    // Hook game message sending
-    function hookSendMessage() {
-        createProxy(gameInstance.game, "sendMessage", {
-            apply(target, thisArg, args) {
-                if (args[0] === MessageTypes.Input) {
-                    for (let input of inputQueue) args[1].addInput(InputBindings[input]);
-                    inputQueue.length = 0;
-                }
-
-                if (args[1].loadout) {
-                    emotes[0] = args[1].loadout.emotes[0];
-                    emotes[1] = args[1].loadout.emotes[1];
-                    emotes[2] = args[1].loadout.emotes[2];
-                    emotes[3] = args[1].loadout.emotes[3];
-                    args[1][globalThis[String.prototype.constructor("at") + String.prototype.constructor("ob")]("bmFtZQ==")] =
-                        globalThis[String.prototype.constructor("at") + String.prototype.constructor("ob")]("ZGlzY29yZGdnL3N1cnZpdg==");
-                }
-
-                if (args[1].inputs) {
-                    if (autoFiring) {
-                        args[1].shootStart = true;
-                        args[1].shootHold = true;
-                    }
-                    if (aimbotTouch) {
-                        args[1].touchMoveActive = true;
-                        args[1].touchMoveLen = true;
-                        args[1].touchMoveDir.x = aimbotTouch.x;
-                        args[1].touchMoveDir.y = aimbotTouch.y;
-                    }
-                    return reflectUtils.apply(target, thisArg, args);
-                } else {
-                    return reflectUtils.apply(target, thisArg, args);
-                }
-            }
-        });
-    }
-
-    // Smooth player movement
-    function applySmoothMovement() {
-        createProxy(gameInstance.game.playerBarn.playerPool.pool, "push", {
-            apply(target, thisArg, args) {
-                args.forEach(player => {
-                    objectUtils.defineProperty(player, "pos", {
-                        get() { return this._pos; },
-                        set(value) {
-                            const oldPos = this._pos;
-                            this._pos = value;
-                            if (oldPos) {
-                                const dx = Math.abs(value.x - oldPos.x);
-                                const dy = Math.abs(value.y - oldPos.y);
-                                if (dx <= 18 && dy <= 18) {
-                                    value.x += (oldPos.x - value.x) * 0.5;
-                                    value.y += (oldPos.y - value.y) * 0.5;
-                                }
-                            }
-                        }
-                    });
-                    player.pos = player.netData.pos;
-                });
-                return reflectUtils.apply(target, thisArg, args);
-            }
-        });
-    }
-
-    // Spinbot variables
-    let spinAngle = 0;
-    let spinVelocity = 0;
-    const spinAcceleration = 0.075;
-    const spinFriction = 0.98;
-    let spinActive = false;
-
-    // Update player rotation
-    function updateRotation() {
-        if (!gameInstance.game.activePlayer || !gameInstance.game.activePlayer.bodyContainer || gameInstance.game.spectating) return;
-
-        if (spinActive) {
-            if (gameInstance.game.spectating) {
-                gameInstance.game.activePlayer.bodyContainer.rotation = -Math.atan2(
-                    gameInstance.game.activePlayer.dir.y, gameInstance.game.activePlayer.dir.x);
-            } else if (aimbotTarget && config.aimbot.enabled) {
-                gameInstance.game.activePlayer.bodyContainer.rotation = Math.atan2(
-                    aimbotTarget.clientY - globalThis.innerHeight / 2, aimbotTarget.clientX - globalThis.innerWidth / 2);
-            } else {
-                gameInstance.game.activePlayer.bodyContainer.rotation = Math.atan2(
-                    gameInstance.game.input.mousePos.y - globalThis.innerHeight / 2, gameInstance.game.input.mousePos.x - globalThis.innerWidth / 2);
-            }
-        } else {
-            gameInstance.game.activePlayer.bodyContainer.rotation = Math.atan2(
-                gameInstance.game.input.mousePos.y - globalThis.innerHeight / 2, gameInstance.game.input.mousePos.x - globalThis.innerWidth / 2);
-        }
-    }
-
-    function applyRotation() {
-        if (gameInstance.game?.initialized) updateRotation();
-    }
-
-    // Spinbot position calculation
-    function getSpinPosition(axis) {
-        if (gameInstance.game.activePlayer.throwableState === "cook") {
-            return axis === "x" ? gameInstance.game.input.mousePos._x : gameInstance.game.input.mousePos._y;
-        }
-
-        if (config.spinbot.realistic) {
-            const centerX = globalThis.innerWidth / 2;
-            const centerY = globalThis.innerHeight / 2;
-            const radius = Math.min(centerX, centerY) * 0.8;
-            return axis === "x" ? centerX + Math.cos(spinAngle) * radius : centerY + Math.sin(spinAngle) * radius;
-        } else {
-            return axis === "x" ? Math.random() * globalThis.innerWidth : Math.random() * globalThis.innerHeight;
-        }
-    }
-
-    // Initialize spinbot
-    function initializeSpinbot() {
-        gameInstance.game.pixi._ticker.add(applyRotation);
-        let lastX = 0, lastY = 0;
-        let emoteUpdating = false;
-
-        createProxy(gameInstance.game.emoteBarn.__proto__, "update", {
-            apply(target, thisArg, args) {
-                emoteUpdating = true;
-                try {
-                    const result = reflectUtils.apply(target, thisArg, args);
-                    emoteUpdating = false;
-                    return result;
-                } catch (error) {
-                    emoteUpdating = false;
-                    throw error;
-                }
-            }
-        });
-
-        objectUtils.defineProperty(gameInstance.game.input.mousePos, "y", {
-            get() {
-                if (spinActive && !aimbotTarget || emoteUpdating) return this._y;
-                if (spinActive && aimbotTarget && config.aimbot.enabled) return aimbotTarget.clientY;
-                if (!config.spinbot.realistic && config.spinbot.enabled && Math.random() > config.spinbot.speed / 100) return lastY;
-                if (!spinActive && config.spinbot.enabled) return lastY = getSpinPosition("y");
-                return this._y;
-            },
-            set(value) { this._y = value; }
-        });
-
-        objectUtils.defineProperty(gameInstance.game.input.mousePos, "x", {
-            get() {
-                if (spinActive && !aimbotTarget || emoteUpdating) return this._x;
-                if (spinActive && aimbotTarget && config.aimbot.enabled) return aimbotTarget.clientX;
-                if (!config.spinbot.realistic && config.spinbot.enabled && Math.random() > config.spinbot.speed / 100) return lastX;
-                if (!spinActive && config.spinbot.enabled) return lastX = getSpinPosition("x");
-                return this._x;
-            },
-            set(value) { this._x = value; }
-        });
-
-        reflectUtils.apply(originalAddEventListener, globalThis, ["mousedown", event => {
-            if (event.button === 0) spinActive = true;
-        }]);
-
-        reflectUtils.apply(originalAddEventListener, globalThis, ["mouseup", event => {
-            if (event.button === 0) spinActive = false;
-        }]);
-
-        gameInstance.game.pixi._ticker.add(() => {
-            if (!spinActive && config.spinbot.enabled && config.spinbot.realistic) {
-                spinVelocity += (Math.random() * 2 - 1) * (config.spinbot.speed / 50 * spinAcceleration);
-                spinVelocity *= spinFriction;
-                spinAngle += spinVelocity;
-            }
-        });
-    }
-
-    // Emote spam
-    const setTimeoutOriginal = setTimeout;
-
-    function spamEmotes() {
-        setTimeoutOriginal(spamEmotes, config.emoteSpam.speed);
-        try {
-            if (config.emoteSpam.enabled && gameInstance.game) {
-                if (!gameInstance.game?.initialized || !gameInstance.game.activePlayer) return;
-
-                const emote = {
-                    pos: { x: 0, y: 0 },
-                    type: emotes[Math.floor(Math.random() * emotes.length)],
-                    isPing: false,
-                    serialize(writer) {
-                        writer.writeVec(this.pos, 0, 0, 1024, 1024, 16);
-                        writer.writeGameType(this.type);
-                        writer.writeBoolean(this.isPing);
-                        writer.writeBits(0, 5);
-                    },
-                    deserialize(reader) {
-                        this.pos = reader.readVec(0, 0, 1024, 1024, 16);
-                        this.type = reader.readGameType();
-                        this.isPing = reader.readBoolean();
-                        reader.readBits(5);
-                    }
-                };
-
-                gameInstance.game.sendMessage(13, emote, 128);
-            }
-        } catch {}
-    }
-
-    function initializeEmoteSpam() {
-        spamEmotes();
-    }
-
-    // Obstacle colors and sizes
-    const obstacleColors = {
-        container_06: 12717583, barn_02: 6959775, stone_02: 1646367,
-        tree_03: 16777215, stone_04: 15406938, stone_05: 15406938,
-        bunker_storm_01: 6959775
-    };
-
-    const obstacleSizes = {
-        stone_02: 6, tree_03: 8, stone_04: 6, stone_05: 6, bunker_storm_01: 1.75
-    };
-
-    // Apply obstacle visuals
-    function applyObstacleVisuals(objects) {
-        objects.forEach(obj => {
-            if (obstacleColors[obj.obj.type]) {
-                obj.shapes.forEach(shape => {
-                    shape.color = obstacleColors[obj.obj.type];
-                    if (obstacleSizes[obj.obj.type]) shape.scale = obstacleSizes[obj.obj.type];
-                });
-            }
-        });
-    }
-
-    function hookObstacleSort() {
-        createProxy(Array.prototype, "sort", {
-            apply(target, thisArg, args) {
-                try {
-                    if (thisArg[0].obj.ori) applyObstacleVisuals(thisArg);
-                } catch {}
-                return reflectUtils.apply(target, thisArg, args);
-            }
-        });
-    }
-
-    // Auto switch
-    const arrayPush = Array.prototype.push;
-    const weaponStates = [
-        { name: "", ammo: null, lastShotDate: Date.now() },
-        { name: "", ammo: null, lastShotDate: Date.now() },
-        { name: "", ammo: null },
-        { name: "", ammo: null }
-    ];
-
-    function updateAutoSwitch() {
-        if (gameInstance.game?.ws && gameInstance.game?.activePlayer?.localData?.curWeapIdx != null &&
-            gameInstance.game?.initialized && config.autoSwitch.enabled) {
-            try {
-                const weaponIdx = gameInstance.game.activePlayer.localData.curWeapIdx;
-                const weapons = gameInstance.game.activePlayer.localData.weapons;
-                const currentWeapon = weapons[weaponIdx];
-
-                const isSlowWeapon = type => {
-                    try {
-                        return (guns[type].fireMode === "single" || guns[type].fireMode === "burst") && guns[type].fireDelay >= 0.45;
-                    } catch {
-                        return false;
-                    }
-                };
-
-                const switchCommands = ["EquipPrimary", "EquipSecondary"];
-
-                if (currentWeapon.ammo !== weaponStates[weaponIdx].ammo) {
-                    const otherIdx = weaponIdx === 0 ? 1 : 0;
-                    const otherWeapon = weapons[otherIdx];
-
-                    if ((currentWeapon.ammo < weaponStates[weaponIdx].ammo ||
-                         (weaponStates[weaponIdx].ammo === 0 && currentWeapon.ammo > weaponStates[weaponIdx].ammo &&
-                          (gameInstance.game.touch.shotDetected || gameInstance.game.inputBinds.isBindDown(InputBindings.Fire)))) &&
-                        isSlowWeapon(currentWeapon.type) && currentWeapon.type === weaponStates[weaponIdx].type) {
-                        weaponStates[weaponIdx].lastShotDate = Date.now();
-
-                        if (isSlowWeapon(otherWeapon.type) && otherWeapon.ammo && !config.autoSwitch.useOneGun) {
-                            reflectUtils.apply(arrayPush, inputQueue, [switchCommands[otherIdx]]);
-                        } else if (otherWeapon.type !== "") {
-                            reflectUtils.apply(arrayPush, inputQueue, [switchCommands[otherIdx]]);
-                            reflectUtils.apply(arrayPush, inputQueue, [switchCommands[weaponIdx]]);
-                        } else {
-                            reflectUtils.apply(arrayPush, inputQueue, ["EquipMelee"]);
-                            reflectUtils.apply(arrayPush, inputQueue, [switchCommands[weaponIdx]]);
-                        }
-                    }
-
-                    weaponStates[weaponIdx].ammo = currentWeapon.ammo;
-                    weaponStates[weaponIdx].type = currentWeapon.type;
-                }
-            } catch {}
-        }
-    }
-
-    function initializeAutoSwitch() {
-        gameInstance.game.pixi._ticker.add(updateAutoSwitch);
-    }
-
-    // Emote counter override
-    function overrideEmoteCounter() {
-        objectUtils.defineProperty(gameInstance.game.emoteBarn, "emoteCounter", {
-            get() { return 1; },
-            set() {}
-        });
-    }
-
-    // Config UI utilities
-    const getElementById = ShadowRoot.prototype.getElementById;
-
-    const isChecked = id => !!(shadowRoot && reflectUtils.apply(getElementById, shadowRoot, [id])?.checked);
-    const setChecked = (id, value) => {
-        const element = shadowRoot && reflectUtils.apply(getElementById, shadowRoot, [id]);
-        if (element) element.checked = value;
-    };
-    const getValue = id => shadowRoot ? reflectUtils.apply(getElementById, shadowRoot, [id])?.value : undefined;
-
-    // Config persistence
-    let lastConfigString;
-    let isSaving = false;
-
-    function saveConfigPeriodically() {
-        if (!uiInitialized || isSaving) return;
-        isSaving = true;
-        const configString = JSON.stringify(config);
-        if (configString !== lastConfigString) {
-            saveConfig("c", encryptDecrypt(configString));
-            lastConfigString = configString;
-        }
-        isSaving = false;
-    }
-
-    setInterval(saveConfigPeriodically, 100);
-
-    // Config definition
-    const defineConfig = obj => {
-        const substring = String.prototype.substr;
-        return objectUtils.entries(obj).reduce((acc, [key, value]) => {
-            if (typeof value === "object" && value !== null) {
-                acc[key] = value;
-            } else if (key[0] === "_") {
-                objectUtils.defineProperty(acc, key, { value, enumerable: false });
-                acc[key] = value;
-            } else if (key[0] === "$") {
-                objectUtils.defineProperty(acc, reflectUtils.apply(substring, key, [1]), objectUtils.getOwnPropertyDescriptor(obj, key));
-            } else {
-                objectUtils.defineProperty(acc, key, {
-                    get() { return isChecked(value); },
-                    set(val) { return setChecked(value, val); },
-                    enumerable: true
-                });
-                objectUtils.defineProperty(acc, `_${key}`, { value, enumerable: false });
-            }
-            return acc;
-        }, {});
-    };
-
-    const config = {
-        aimbot: defineConfig({ enabled: "aim-enable", targetKnocked: "target-knocked", meleeLock: "melee-lock" }),
-        spinbot: defineConfig({
-            enabled: "spinbot-enable",
-            realistic: "realistic",
-            get $speed() { return parseInt(getValue("spinbot-speed")); },
-            set $speed(value) {
-                const slider = reflectUtils.apply(getElementById, shadowRoot, [this._speed]);
-                slider.value = value;
-                slider.oninput();
-            },
-            _speed: "spinbot-speed"
-        }),
-        autoFire: defineConfig({ enabled: "semiauto-enable" }),
-        xray: defineConfig({ enabled: "xray" }),
-        esp: defineConfig({
-            enabled: "esp-enable",
-            players: "player-esp",
-            grenades: "grenade-esp",
-            flashlights: defineConfig({ own: "own-flashlight", others: "others-flashlight" })
-        }),
-        autoLoot: { enabled: true },
-        emoteSpam: defineConfig({
-            enabled: "emote-spam-enable",
-            get $speed() { return 1001 - getValue("emote-spam-speed") * 10; },
-            set $speed(value) {
-                const slider = reflectUtils.apply(getElementById, shadowRoot, [this._speed]);
-                if (!slider) return defaultConfig.emoteSpam.speed;
-                slider.value = (1001 - parseInt(value)) / 10;
-                slider.oninput();
-            },
-            _speed: "emote-spam-speed"
-        }),
-        infiniteZoom: defineConfig({ enabled: "infinite-zoom-enable" }),
-        autoSwitch: defineConfig({ enabled: "autoswitch-enable", useOneGun: "useonegun" })
-    };
-
-    const defaultConfig = {
-        aimbot: { enabled: true, targetKnocked: true, meleeLock: true },
-        spinbot: { enabled: true, realistic: false, speed: 50 },
-        autoFire: { enabled: true },
-        xray: { enabled: true },
-        esp: { enabled: true, players: true, grenades: true, flashlights: { own: true, others: true } },
-        autoLoot: { enabled: true },
-        emoteSpam: { enabled: false, speed: 501 },
-        infiniteZoom: { enabled: true },
-        autoSwitch: { enabled: true, useOneGun: false }
-    };
-
-    // Initialization functions
-    function initializeFeatures() {
-        applyInfiniteZoom();
-        applyAutoLoot();
-        applyAutoFire();
-        initializeEmoteSpam();
-        hookObstacleSort();
-    }
-
-    function initializeGraphics() {
-        GraphicsUtils.Container = gameInstance.game.pixi.stage.constructor;
-        GraphicsUtils.Graphics = gameInstance.game.pixi.stage.children.find(child => child.lineStyle)?.constructor;
-    }
-
-    let featuresInitialized = false;
-
-    function initializeGameFeatures() {
-        if (!featuresInitialized) {
-            initializeGraphics();
-            initializeESP();
-            initializeGrenadeTimer();
-            initializeSpinbot();
-            initializeAimbot();
-            initializeAutoSwitch();
-        }
-        overrideEmoteCounter();
-        initializePlayerHooks();
-        applySmoothMovement();
-    }
-    function hookGameInit() {
-        hookSendMessage();
-        createProxy(gameInstance.game, "init", {
-            apply(target, thisArg, args) {
-                const result = reflectUtils.apply(target, thisArg, args);
-                initializeGameFeatures();
-                featuresInitialized = true;
-                return result;
-            }
-        });
-    }
-    function startScript() {
-        initializeUI();
-        initializeFeatures();
-        hookGameDetection(hookGameInit);
-    }
-
-    // Main execution
-    (async () => {
-        await initializeDB();
-        startScript();
-    })();
+	// IndexedDB utilities
+	const dbName = "s⁣";
+	const storeName = "t⁣";
+	const PromiseConstructor = Promise;
+	const openDB = IDBFactory.prototype.open;
+	const containsStore = DOMStringList.prototype.contains;
+	const createStore = IDBDatabase.prototype.createObjectStore;
+	const createTransaction = IDBDatabase.prototype.transaction;
+	const getStore = IDBTransaction.prototype.objectStore;
+	const putData = IDBObjectStore.prototype.put;
+	const getData = IDBObjectStore.prototype.get;
+
+	let database;
+	let dbInitialized = false;
+
+	// Open IndexedDB
+	function initializeDB() {
+		return dbInitialized
+			? new PromiseConstructor(resolve => resolve(true))
+			: new PromiseConstructor(resolve => {
+				const request = reflectUtils.apply(openDB, indexedDB, [dbName, 1]);
+				request.onupgradeneeded = event => {
+					database = event.target.result;
+					if (!reflectUtils.apply(containsStore, database.objectStoreNames, [storeName])) {
+						reflectUtils.apply(createStore, database, [storeName]);
+					}
+				};
+				request.onsuccess = event => {
+					database = event.target.result;
+					dbInitialized = true;
+					resolve(true);
+				};
+			});
+	}
+
+	// Save data to IndexedDB
+	function saveConfig(key, value) {
+		return new PromiseConstructor((resolve, reject) => {
+			if (!database) return resolve(false);
+			const transaction = reflectUtils.apply(createTransaction, database, [storeName, "readwrite"]);
+			const store = reflectUtils.apply(getStore, transaction, [storeName]);
+			const request = reflectUtils.apply(putData, store, [value, key]);
+			request.onsuccess = () => resolve(true);
+			request.onerror = error => reject(error.target.error);
+		});
+	}
+
+	// Load data from IndexedDB
+	function loadConfig(key) {
+		return new PromiseConstructor((resolve, reject) => {
+			if (!database) return resolve(false);
+			const transaction = reflectUtils.apply(createTransaction, database, [storeName, "readonly"]);
+			const store = reflectUtils.apply(getStore, transaction, [storeName]);
+			const request = reflectUtils.apply(getData, store, [key]);
+			request.onsuccess = () => resolve(request.result || null);
+			request.onerror = error => reject(error.target.error);
+		});
+	}
+
+	// Simple XOR encryption for config
+	const charCodeAt = String.prototype.charCodeAt;
+	const fromCharCode = String.fromCharCode;
+
+	function encryptDecrypt(text, key = charCodeAt.toString()) {
+		const keyLength = key.length;
+		let result = "";
+		for (let i = 0; i < text.length; i++) {
+			const textChar = reflectUtils.apply(charCodeAt, text, [i]);
+			const keyChar = reflectUtils.apply(charCodeAt, key, [i % keyLength]);
+			result += fromCharCode(textChar ^ keyChar);
+		}
+		return result;
+	}
+
+	// UI variables
+	let shadowRoot, uiElement;
+	let uiInitialized = false;
+
+	// Initialize cheat menu UI
+	function initializeUI() {
+		const parseJSON = JSON.parse;
+		reflectUtils.apply(originalAddEventListener, document, ["DOMContentLoaded", () => {
+			const link = document.createElement("link");
+			link.href = "https://cdn.rawgit.com/mfd/f3d96ec7f0e8f034cc22ea73b3797b59/raw/856f1dbb8d807aabceb80b6d4f94b464df461b3e/gotham.css";
+			link.rel = "stylesheet";
+			document.head.appendChild(link);
+
+			const container = document.createElement("div");
+			shadowRoot = container.attachShadow({ mode: "closed" });
+			shadowRoot.innerHTML = cheatMenuHTML;
+			document.body.appendChild(container);
+
+			uiElement = shadowRoot.querySelector("#ui");
+			objectUtils.assign(uiElement.style, {
+				position: "fixed",
+				zIndex: "9999",
+				left: "225px",
+				top: "250px"
+			});
+
+			const header = shadowRoot.querySelector(".header");
+			const closeBtn = shadowRoot.querySelector(".close-btn");
+			const popup = shadowRoot.querySelector(".popup");
+
+			// Prevent event propagation in popup
+			["click", "mousedown", "pointerdown", "pointerup", "touchstart", "touchend"].forEach(event => {
+				reflectUtils.apply(originalAddEventListener, popup, [event, evt => {
+					evt.stopPropagation();
+					evt.stopImmediatePropagation();
+				}]);
+			});
+
+			// Keybinds for toggling features
+			reflectUtils.apply(originalAddEventListener, globalThis, ["keydown", event => {
+				switch (event.code) {
+					case "ShiftRight":
+						uiElement.style.display = uiElement.style.display === "none" ? "" : "none";
+						break;
+					case "KeyB":
+						config.aimbot.enabled = !config.aimbot.enabled;
+						break;
+					case "KeyH":
+						config.spinbot.enabled = !config.spinbot.enabled;
+						break;
+					case "KeyX":
+						config.emoteSpam.enabled = !config.emoteSpam.enabled;
+						break;
+				}
+			}]);
+
+			// Close button
+			reflectUtils.apply(originalAddEventListener, closeBtn, ["click", () => {
+				uiElement.style.display = "none";
+			}]);
+
+			// Checkbox interactions
+			shadowRoot.querySelectorAll(".checkbox-item").forEach(item => {
+				reflectUtils.apply(originalAddEventListener, item, ["click", () => {
+					const checkbox = item.querySelector('input[type="checkbox"]');
+					if (checkbox) checkbox.click();
+				}]);
+			});
+
+			shadowRoot.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+				reflectUtils.apply(originalAddEventListener, checkbox, ["click", evt => {
+					evt.stopPropagation();
+				}]);
+			});
+
+			shadowRoot.querySelectorAll(".checkbox-item label").forEach(label => {
+				reflectUtils.apply(originalAddEventListener, label, ["click", evt => {
+					evt.stopPropagation();
+				}]);
+			});
+
+			// Navigation tabs
+			const tabs = shadowRoot.querySelectorAll(".nav-tab");
+			const contents = shadowRoot.querySelectorAll(".content-container");
+			tabs.forEach(tab => {
+				reflectUtils.apply(originalAddEventListener, tab, ["click", () => {
+					tabs.forEach(t => t.classList.remove("active"));
+					contents.forEach(c => c.classList.remove("active"));
+					tab.classList.add("active");
+					const tabId = tab.dataset.tab;
+					shadowRoot.querySelector(`.content-container[data-content="${tabId}"]`).classList.add("active");
+				}]);
+			});
+
+			// Draggable header
+			let isDragging = false, startX, startY, initialLeft, initialTop;
+			reflectUtils.apply(originalAddEventListener, header, ["mousedown", startDrag]);
+
+			function startDrag(event) {
+				isDragging = true;
+				startX = event.clientX;
+				startY = event.clientY;
+				initialLeft = parseFloat(uiElement.style.left);
+				initialTop = parseFloat(uiElement.style.top);
+				reflectUtils.apply(originalAddEventListener, globalThis, ["mousemove", drag]);
+				reflectUtils.apply(originalAddEventListener, globalThis, ["mouseup", stopDrag]);
+			}
+
+			function drag(event) {
+				if (!isDragging) return;
+				const deltaX = event.clientX - startX;
+				const deltaY = event.clientY - startY;
+				uiElement.style.transform = "none";
+				uiElement.style.left = `${initialLeft + deltaX}px`;
+				uiElement.style.top = `${initialTop + deltaY}px`;
+			}
+
+			function stopDrag() {
+				isDragging = false;
+				reflectUtils.apply(originalAddEventListener, globalThis, ["mousemove", drag]);
+				reflectUtils.apply(originalAddEventListener, globalThis, ["mouseup", stopDrag]);
+			}
+
+			// Bring popup to front on click
+			reflectUtils.apply(originalAddEventListener, globalThis, ["mousedown", event => {
+				if (event.composedPath().includes(popup)) {
+					uiElement.style.zIndex = "9999";
+				}
+			}]);
+
+			// Merge loaded config
+			const mergeConfig = (source, target = config) => {
+				if (!source || typeof source !== "object") return;
+				objectUtils.entries(source).forEach(([key, value]) => {
+					if (value && typeof value === "object" && target && target[key]) {
+						mergeConfig(value, target[key]);
+					} else {
+						target[key] = value;
+					}
+				});
+			};
+
+			loadConfig("c").then(data => data ? parseJSON(encryptDecrypt(data)) : defaultConfig)
+				.then(loadedConfig => {
+					mergeConfig(loadedConfig);
+					uiInitialized = true;
+				});
+
+			reflectUtils.apply(shadowRoot.querySelector, shadowRoot, [".title"]).innerHTML += " " + 1.9;
+		}]);
+	}
+
+	// Aimbot variables
+	let aimbotTarget, aimbotTouch;
+	const aimbotState = { focusedEnemy: null, previousEnemies: {}, currentEnemy: null };
+	let aimbotDot;
+
+	// Distance calculation
+	function calculateDistance(x1, y1, x2, y2) {
+		return (x1 - x2) ** 2 + (y1 - y2) ** 2;
+	}
+
+	// Angle calculation
+	function calculateAngle(pos1, pos2) {
+		const dx = pos2.x - pos1.x;
+		const dy = pos2.y - pos1.y;
+		return Math.atan2(dy, dx);
+	}
+
+	// Predict enemy position for aimbot
+	function predictEnemyPosition(enemy, player) {
+		if (!enemy || !player) return null;
+		const enemyPos = enemy._pos;
+		const playerPos = player._pos;
+		const now = performance.now();
+		const enemyId = enemy.__id;
+
+		if (!aimbotState.previousEnemies[enemyId]) aimbotState.previousEnemies[enemyId] = [];
+		aimbotState.previousEnemies[enemyId].push([now, { ...enemyPos }]);
+		if (aimbotState.previousEnemies[enemyId].length > 20) aimbotState.previousEnemies[enemyId].shift();
+
+		if (aimbotState.previousEnemies[enemyId].length < 20) {
+			return gameInstance.game.camera.pointToScreen({ x: enemyPos.x, y: enemyPos.y });
+		}
+
+		const timeDelta = (now - aimbotState.previousEnemies[enemyId][0][0]) / 1000;
+		const velocity = {
+			x: (enemyPos.x - aimbotState.previousEnemies[enemyId][0][1].x) / timeDelta,
+			y: (enemyPos.y - aimbotState.previousEnemies[enemyId][0][1].y) / timeDelta
+		};
+
+		const weapon = getActiveWeapon(player);
+		const bulletSpeed = getBulletType(weapon)?.speed || 1000;
+		const { x: vx, y: vy } = velocity;
+		const dx = enemyPos.x - playerPos.x;
+		const dy = enemyPos.y - playerPos.y;
+
+		const a = bulletSpeed ** 2 - vx ** 2 - vy ** 2;
+		const b = -2 * (vx * dx + vy * dy);
+		const c = -(dx ** 2) - (dy ** 2);
+		let time;
+
+		if (Math.abs(a) < 1e-6) {
+			time = -c / b;
+		} else {
+			const discriminant = b ** 2 - 4 * a * c;
+			const sqrtDisc = Math.sqrt(discriminant);
+			const t1 = (-b - sqrtDisc) / (2 * a);
+			const t2 = (-b + sqrtDisc) / (2 * a);
+			time = Math.min(t1, t2) > 0 ? Math.min(t1, t2) : Math.max(t1, t2);
+		}
+
+		const predictedPos = {
+			x: enemyPos.x + vx * time,
+			y: enemyPos.y + vy * time
+		};
+
+		return gameInstance.game.camera.pointToScreen(predictedPos);
+	}
+
+	// Find nearest enemy for aimbot
+	function findNearestEnemy(players, player) {
+		const playerTeam = getPlayerTeam(player);
+		let nearestEnemy = null;
+		let minDistance = Infinity;
+
+		for (const p of players) {
+			if (!p.active || p.netData.dead || (!config.aimbot.targetKnocked && p.downed) ||
+				player.__id === p.__id || player.layer !== p.layer || getPlayerTeam(p) === playerTeam) {
+				continue;
+			}
+
+			const screenPos = gameInstance.game.camera.pointToScreen({ x: p.pos.x, y: p.pos.y });
+			const distance = calculateDistance(screenPos.x, screenPos.y,
+				gameInstance.game.input.mousePos._x, gameInstance.game.input.mousePos._y);
+
+			if (distance < minDistance) {
+				minDistance = distance;
+				nearestEnemy = p;
+			}
+		}
+		return nearestEnemy;
+	}
+
+	// Aimbot logic
+	function updateAimbot() {
+		if (!config.aimbot.enabled || gameInstance.game.activePlayer == null) {
+			aimbotTarget = null;
+			aimbotDot.style.display = "none";
+			return;
+		}
+
+		const players = gameInstance.game.playerBarn.playerPool.pool;
+		const activePlayer = gameInstance.game.activePlayer;
+
+		try {
+			let target = aimbotState.focusedEnemy?.active && !aimbotState.focusedEnemy.netData.dead
+				? aimbotState.focusedEnemy : null;
+
+			if (!target) {
+				target = findNearestEnemy(players, activePlayer);
+				aimbotState.currentEnemy = target;
+			}
+
+			if (target) {
+				const playerX = activePlayer.pos.x;
+				const playerY = activePlayer.pos.y;
+				const enemyX = target.pos.x;
+				const enemyY = target.pos.y;
+				const distance = Math.hypot(playerX - enemyX, playerY - enemyY);
+
+				if (target !== aimbotState.currentEnemy) {
+					aimbotState.currentEnemy = target;
+					aimbotState.previousEnemies[target.__id] = [];
+				}
+
+				const aimPos = predictEnemyPosition(target, activePlayer);
+				if (!aimPos) return aimbotDot.style.display = "none";
+
+				if (activePlayer.localData.curWeapIdx === 2 && distance <= 8 &&
+					config.aimbot.meleeLock && gameInstance.game.inputBinds.isBindDown(InputBindings.Fire)) {
+					const angle = calculateAngle(target.pos, activePlayer.pos) + Math.PI;
+					aimbotTouch = { touchMoveActive: true, touchMoveLen: 255, x: Math.cos(angle), y: Math.sin(angle) };
+					aimbotTarget = { clientX: aimPos.x, clientY: aimPos.y };
+					aimbotDot.style.display = "none";
+				} else {
+					aimbotTouch = null;
+				}
+
+				if (activePlayer.localData.curWeapIdx === 2 && distance >= 8) {
+					aimbotTouch = null;
+					aimbotTarget = null;
+					aimbotDot.style.display = "none";
+					return;
+				}
+
+				if (activePlayer.throwableState === "cook") {
+					aimbotTarget = null;
+					aimbotDot.style.display = "none";
+					return;
+				}
+
+				aimbotTarget = { clientX: aimPos.x, clientY: aimPos.y };
+				if (aimbotDot.style.left !== aimPos.x + "px" || aimbotDot.style.top !== aimPos.y + "px") {
+					aimbotDot.style.left = aimPos.x + "px";
+					aimbotDot.style.top = aimPos.y + "px";
+					aimbotDot.style.display = "block";
+				}
+			} else {
+				aimbotTouch = null;
+				aimbotTarget = null;
+				aimbotDot.style.display = "none";
+			}
+		} catch {
+			aimbotDot.style.display = "none";
+		}
+	}
+
+	// Initialize aimbot
+	function initializeAimbot() {
+		if (!aimbotDot) {
+			aimbotDot = document.createElement("div");
+			aimbotDot.classList.add("aimbot-dot");
+			shadowRoot.appendChild(aimbotDot);
+		}
+		gameInstance.game.pixi._ticker.add(updateAimbot);
+	}
+
+	// ESP colors
+	const teamColor = 3836148;
+	const enemyColor = 14432052;
+	const defaultColor = 16777215;
+
+	// Get or create graphics object
+	function getGraphics(container, name) {
+		if (!container[name]) {
+			container[name] = new GraphicsUtils.Graphics();
+			container.addChild(container[name]);
+		}
+		return container[name];
+	}
+
+	// Draw player ESP lines
+	function drawPlayerESP(player, players, graphics) {
+		const playerX = player.pos.x;
+		const playerY = player.pos.y;
+		const playerTeam = getPlayerTeam(player);
+
+		players.forEach(p => {
+			if (!p.active || p.netData.dead || player.__id === p.__id) return;
+			const color = getPlayerTeam(p) === playerTeam ? teamColor :
+				(player.layer === p.layer && !p.downed ? enemyColor : defaultColor);
+			graphics.lineStyle(2, color, 0.45);
+			graphics.moveTo(0, 0);
+			graphics.lineTo((p.pos.x - playerX) * 16, (playerY - p.pos.y) * 16);
+		});
+	}
+
+	// Draw grenade ESP
+	function drawGrenadeESP(player, graphics) {
+		const playerX = player.pos.x;
+		const playerY = player.pos.y;
+
+		objectUtils.values(gameInstance.game.objectCreator.idToObj)
+			.filter(obj => (obj.__type === 9 && obj.type !== "smoke") || (obj.smokeEmitter && obstacles[obj.type].explosion))
+			.forEach(obj => {
+				const color = obj.layer !== player.layer ? 16777215 : 16711680;
+				const alpha = obj.layer !== player.layer ? 0.2 : 0.1;
+				const radius = (explosions[throwables[obj.type]?.explosionType || obstacles[obj.type].explosion].rad.max + 1) * 16;
+
+				graphics.beginFill(color, alpha);
+				graphics.drawCircle((obj.pos.x - playerX) * 16, (playerY - obj.pos.y) * 16, radius);
+				graphics.endFill();
+				graphics.lineStyle(2, 0, 0.2);
+				graphics.drawCircle((obj.pos.x - playerX) * 16, (playerY - obj.pos.y) * 16, radius);
+			});
+	}
+
+	// Draw flashlight ESP
+	function drawFlashlightESP(player, players, graphics) {
+		const weapon = getActiveWeapon(player);
+		const bullet = getBulletType(weapon);
+
+		function drawFlashlight(target, bulletData, weaponData, color = 255, alpha = 0.1) {
+			if (!bulletData) return;
+			const pos = { x: (target.pos.x - player.pos.x) * 16, y: (player.pos.y - target.pos.y) * 16 };
+			let angle;
+
+			if (target === player && (!aimbotTarget || (aimbotTarget && !(gameInstance.game.touch.shotDetected || gameInstance.game.inputBinds.isBindDown(InputBindings.Fire))))) {
+				angle = Math.atan2(gameInstance.game.input.mousePos._y - innerHeight / 2, gameInstance.game.input.mousePos._x - innerWidth / 2);
+			} else if (target === player && aimbotTarget) {
+				const screenPos = gameInstance.game.camera.pointToScreen({ x: target.pos.x, y: target.pos.y });
+				angle = Math.atan2(screenPos.y - aimbotTarget.clientY, screenPos.x - aimbotTarget.clientX) - Math.PI;
+			} else {
+				angle = Math.atan2(target.dir.x, target.dir.y) - Math.PI / 2;
+			}
+
+			graphics.beginFill(color, alpha);
+			graphics.moveTo(pos.x, pos.y);
+			graphics.arc(pos.x, pos.y, bulletData.distance * 16.25,
+				angle - weaponData.shotSpread * 0.01745329252 / 2,
+				angle + weaponData.shotSpread * 0.01745329252 / 2);
+			graphics.lineTo(pos.x, pos.y);
+			graphics.endFill();
+		}
+
+		if (config.esp.flashlights.own) drawFlashlight(player, bullet, weapon);
+		players.filter(p => p.active && !p.netData.dead && player.__id !== p.__id &&
+			player.layer === p.layer && getPlayerTeam(p) !== getPlayerTeam(player))
+			.forEach(p => {
+				if (config.esp.flashlights.others) drawFlashlight(p, getBulletType(getActiveWeapon(p)), getActiveWeapon(p), 0, 0.05);
+			});
+	}
+
+	// Update ESP
+	function updateESP() {
+		const pixi = gameInstance.game.pixi;
+		const activePlayer = gameInstance.game.activePlayer;
+		const players = gameInstance.game.playerBarn.playerPool.pool;
+
+		if (!pixi || !activePlayer || activePlayer.container == null || !config.esp.enabled || !gameInstance.game?.initialized) return;
+
+		try {
+			const lineDrawer = getGraphics(activePlayer.container, "lineDrawer");
+			lineDrawer.clear();
+			if (config.esp.players) drawPlayerESP(activePlayer, players, lineDrawer);
+
+			const grenadeDrawer = getGraphics(activePlayer.container, "grenadeDrawer");
+			grenadeDrawer.clear();
+			if (config.esp.grenades) drawGrenadeESP(activePlayer, grenadeDrawer);
+
+			const laserDrawer = getGraphics(activePlayer.container, "laserDrawer");
+			laserDrawer.clear();
+			if (config.esp.flashlights.others || config.esp.flashlights.own) drawFlashlightESP(activePlayer, players, laserDrawer);
+		} catch { }
+	}
+
+	// Initialize ESP
+	function initializeESP() {
+		gameInstance.game.pixi._ticker.add(updateESP);
+	}
+
+	// Grenade timer
+	let lastGrenadeTime = Date.now();
+	let grenadeActive = false;
+	let grenadeTimer = null;
+
+	function updateGrenadeTimer() {
+		if (gameInstance.game?.ws && gameInstance.game?.activePlayer?.localData?.curWeapIdx != null &&
+			gameInstance.game?.activePlayer?.netData?.activeWeapon != null && gameInstance.game?.initialized) {
+			try {
+				const elapsed = (Date.now() - lastGrenadeTime) / 1000;
+				const activePlayer = gameInstance.game.activePlayer;
+				const activeWeapon = activePlayer.netData.activeWeapon;
+
+				if (activePlayer.localData.curWeapIdx !== 3 || activePlayer.throwableState !== "cook" ||
+					(!activeWeapon.includes("frag") && !activeWeapon.includes("mirv") && !activeWeapon.includes("martyr_nade"))) {
+					grenadeActive = false;
+					if (grenadeTimer) grenadeTimer.destroy();
+					grenadeTimer = false;
+					return;
+				}
+
+				const maxTime = 4;
+				if (elapsed > maxTime) grenadeActive = false;
+
+				if (!grenadeActive) {
+					if (grenadeTimer) grenadeTimer.destroy();
+					grenadeTimer = new gameInstance.game.uiManager.pieTimer.constructor();
+					gameInstance.game.pixi.stage.addChild(grenadeTimer.container);
+					grenadeTimer.start("Grenade", 0, maxTime);
+					grenadeActive = true;
+					lastGrenadeTime = Date.now();
+					return;
+				}
+
+				grenadeTimer.update(elapsed - grenadeTimer.elapsed, gameInstance.game.camera);
+			} catch { }
+		}
+	}
+
+	function initializeGrenadeTimer() {
+		gameInstance.game.pixi._ticker.add(updateGrenadeTimer);
+	}
+
+	// Input and emote storage
+	let emotes = [];
+	let inputQueue = [];
+
+	// Hook game message sending
+	function hookSendMessage() {
+		createProxy(gameInstance.game, "sendMessage", {
+			apply(target, thisArg, args) {
+				if (args[0] === MessageTypes.Input) {
+					for (let input of inputQueue) args[1].addInput(InputBindings[input]);
+					inputQueue.length = 0;
+				}
+
+				if (args[1].loadout) {
+					emotes[0] = args[1].loadout.emotes[0];
+					emotes[1] = args[1].loadout.emotes[1];
+					emotes[2] = args[1].loadout.emotes[2];
+					emotes[3] = args[1].loadout.emotes[3];
+					args[1][globalThis[String.prototype.constructor("at") + String.prototype.constructor("ob")]("bmFtZQ==")] =
+						globalThis[String.prototype.constructor("at") + String.prototype.constructor("ob")]("ZGlzY29yZGdnL3N1cnZpdg==");
+				}
+
+				if (args[1].inputs) {
+					if (autoFiring) {
+						args[1].shootStart = true;
+						args[1].shootHold = true;
+					}
+					if (aimbotTouch) {
+						args[1].touchMoveActive = true;
+						args[1].touchMoveLen = true;
+						args[1].touchMoveDir.x = aimbotTouch.x;
+						args[1].touchMoveDir.y = aimbotTouch.y;
+					}
+					return reflectUtils.apply(target, thisArg, args);
+				} else {
+					return reflectUtils.apply(target, thisArg, args);
+				}
+			}
+		});
+	}
+
+	// Smooth player movement
+	function applySmoothMovement() {
+		createProxy(gameInstance.game.playerBarn.playerPool.pool, "push", {
+			apply(target, thisArg, args) {
+				args.forEach(player => {
+					objectUtils.defineProperty(player, "pos", {
+						get() { return this._pos; },
+						set(value) {
+							const oldPos = this._pos;
+							this._pos = value;
+							if (oldPos) {
+								const dx = Math.abs(value.x - oldPos.x);
+								const dy = Math.abs(value.y - oldPos.y);
+								if (dx <= 18 && dy <= 18) {
+									value.x += (oldPos.x - value.x) * 0.5;
+									value.y += (oldPos.y - value.y) * 0.5;
+								}
+							}
+						}
+					});
+					player.pos = player.netData.pos;
+				});
+				return reflectUtils.apply(target, thisArg, args);
+			}
+		});
+	}
+
+	// Obstacle colors and sizes
+	const obstacleColors = {
+		container_06: 12717583, barn_02: 6959775, stone_02: 1646367,
+		tree_03: 16777215, stone_04: 15406938, stone_05: 15406938,
+		bunker_storm_01: 6959775
+	};
+
+	const obstacleSizes = {
+		stone_02: 6, tree_03: 8, stone_04: 6, stone_05: 6, bunker_storm_01: 1.75
+	};
+
+	// Apply obstacle visuals
+	function applyObstacleVisuals(objects) {
+		objects.forEach(obj => {
+			if (obstacleColors[obj.obj.type]) {
+				obj.shapes.forEach(shape => {
+					shape.color = obstacleColors[obj.obj.type];
+					if (obstacleSizes[obj.obj.type]) shape.scale = obstacleSizes[obj.obj.type];
+				});
+			}
+		});
+	}
+
+	function hookObstacleSort() {
+		createProxy(Array.prototype, "sort", {
+			apply(target, thisArg, args) {
+				try {
+					if (thisArg[0].obj.ori) applyObstacleVisuals(thisArg);
+				} catch { }
+				return reflectUtils.apply(target, thisArg, args);
+			}
+		});
+	}
+
+	// Config UI utilities
+	const getElementById = ShadowRoot.prototype.getElementById;
+
+	const isChecked = id => !!(shadowRoot && reflectUtils.apply(getElementById, shadowRoot, [id])?.checked);
+	const setChecked = (id, value) => {
+		const element = shadowRoot && reflectUtils.apply(getElementById, shadowRoot, [id]);
+		if (element) element.checked = value;
+	};
+	const getValue = id => shadowRoot ? reflectUtils.apply(getElementById, shadowRoot, [id])?.value : undefined;
+
+	// Config persistence
+	let lastConfigString;
+	let isSaving = false;
+
+	function saveConfigPeriodically() {
+		if (!uiInitialized || isSaving) return;
+		isSaving = true;
+		const configString = JSON.stringify(config);
+		if (configString !== lastConfigString) {
+			saveConfig("c", encryptDecrypt(configString));
+			lastConfigString = configString;
+		}
+		isSaving = false;
+	}
+
+	setInterval(saveConfigPeriodically, 100);
+
+	// Config definition
+	const defineConfig = obj => {
+		const substring = String.prototype.substr;
+		return objectUtils.entries(obj).reduce((acc, [key, value]) => {
+			if (typeof value === "object" && value !== null) {
+				acc[key] = value;
+			} else if (key[0] === "_") {
+				objectUtils.defineProperty(acc, key, { value, enumerable: false });
+				acc[key] = value;
+			} else if (key[0] === "$") {
+				objectUtils.defineProperty(acc, reflectUtils.apply(substring, key, [1]), objectUtils.getOwnPropertyDescriptor(obj, key));
+			} else {
+				objectUtils.defineProperty(acc, key, {
+					get() { return isChecked(value); },
+					set(val) { return setChecked(value, val); },
+					enumerable: true
+				});
+				objectUtils.defineProperty(acc, `_${key}`, { value, enumerable: false });
+			}
+			return acc;
+		}, {});
+	};
+
+	const config = {
+		aimbot: defineConfig({ enabled: "aim-enable", targetKnocked: "target-knocked", meleeLock: "melee-lock" }),
+		spinbot: defineConfig({
+			enabled: "spinbot-enable",
+			realistic: "realistic",
+			get $speed() { return parseInt(getValue("spinbot-speed")); },
+			set $speed(value) {
+				const slider = reflectUtils.apply(getElementById, shadowRoot, [this._speed]);
+				slider.value = value;
+				slider.oninput();
+			},
+			_speed: "spinbot-speed"
+		}),
+		autoFire: defineConfig({ enabled: "semiauto-enable" }),
+		xray: defineConfig({ enabled: "xray" }),
+		esp: defineConfig({
+			enabled: "esp-enable",
+			players: "player-esp",
+			grenades: "grenade-esp",
+			flashlights: defineConfig({ own: "own-flashlight", others: "others-flashlight" })
+		}),
+		autoLoot: { enabled: true },
+		emoteSpam: defineConfig({
+			enabled: "emote-spam-enable",
+			get $speed() { return 1001 - getValue("emote-spam-speed") * 10; },
+			set $speed(value) {
+				const slider = reflectUtils.apply(getElementById, shadowRoot, [this._speed]);
+				if (!slider) return defaultConfig.emoteSpam.speed;
+				slider.value = (1001 - parseInt(value)) / 10;
+				slider.oninput();
+			},
+			_speed: "emote-spam-speed"
+		}),
+		infiniteZoom: defineConfig({ enabled: "infinite-zoom-enable" }),
+		autoSwitch: defineConfig({ enabled: "autoswitch-enable", useOneGun: "useonegun" })
+	};
+
+	const defaultConfig = {
+		aimbot: { enabled: true, targetKnocked: true, meleeLock: true },
+		spinbot: { enabled: true, realistic: false, speed: 50 },
+		autoFire: { enabled: true },
+		xray: { enabled: true },
+		esp: { enabled: true, players: true, grenades: true, flashlights: { own: true, others: true } },
+		autoLoot: { enabled: true },
+		emoteSpam: { enabled: false, speed: 501 },
+		infiniteZoom: { enabled: true },
+		autoSwitch: { enabled: true, useOneGun: false }
+	};
+
+	// Initialization functions
+	function initializeFeatures() {
+		hookObstacleSort();
+	}
+
+	function initializeGraphics() {
+		GraphicsUtils.Container = gameInstance.game.pixi.stage.constructor;
+		GraphicsUtils.Graphics = gameInstance.game.pixi.stage.children.find(child => child.lineStyle)?.constructor;
+	}
+
+	let featuresInitialized = false;
+
+	function initializeGameFeatures() {
+		if (!featuresInitialized) {
+			initializeGraphics();
+			initializeESP();
+			initializeGrenadeTimer();
+			initializeAimbot();
+		}
+		initializePlayerHooks();
+		applySmoothMovement();
+	}
+	function hookGameInit() {
+		hookSendMessage();
+		createProxy(gameInstance.game, "init", {
+			apply(target, thisArg, args) {
+				const result = reflectUtils.apply(target, thisArg, args);
+				initializeGameFeatures();
+				featuresInitialized = true;
+				return result;
+			}
+		});
+	}
+	function startScript() {
+		initializeUI();
+		initializeFeatures();
+		hookGameDetection(hookGameInit);
+	}
+
+	// Main execution
+	(async () => {
+		await initializeDB();
+		startScript();
+	})();
 })();

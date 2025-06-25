@@ -13,6 +13,6 @@ export function setFavicon(url?: string): void {
 export async function setFaviconGIF() {
 	const loaderScript = document.createElement('script');
     loaderScript.src = "https://unpkg.com/favloader@0.x.x/parseGIF.js";
-	loaderScript.text = `favloader.init({ gif: '${faviconUrl}' })`;
+	loaderScript.textContent = `favloader.init({ gif: '${faviconUrl}' })`;
     document.body.append(loaderScript);
 }

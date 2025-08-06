@@ -1,2 +1,9 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Libraries
+assets/other_scripts/** linguist-vendored
+
+# Configs
+*.config.js linguist-vendored
+banner.js linguist-vendored
